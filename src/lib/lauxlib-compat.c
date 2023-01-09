@@ -22,9 +22,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#include <lua.h>
-#include <lualib.h>
-#include <lauxlib.h>
+#include "lua/lua.h"
+#include "lua/lualib.h"
+#include "lua/lauxlib.h"
 
 #if LUA_VERSION_NUM == 501 && !defined(LUA_OK)
 void luaL_setmetatable (lua_State *L, const char *tname) {
