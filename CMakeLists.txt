@@ -38,6 +38,12 @@ endif()
 
 aux_source_directory(src RIME_LUA_SRC)
 aux_source_directory(src/lib RIME_LUA_LIB_SRC)
+# Optional header-only bridge to the touch correction plugin: Lua-created
+# Script/Table translators gain touch assistance when it is built alongside.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../correction/src/touch_translator_bridge.h")
+  include_directories(../correction/src)
+  add_definitions(-DRIME_LUA_TOUCH_BRIDGE)
+endif()
 
 add_library(rime-lua-objs OBJECT ${RIME_LUA_SRC} ${RIME_LUA_LIB_SRC} ${LUA_SRC})
 if(BUILD_SHARED_LIBS)

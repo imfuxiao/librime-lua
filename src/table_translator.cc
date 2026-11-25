@@ -14,7 +14,11 @@
 #include <rime/dict/dictionary.h>
 #include <rime/dict/user_dictionary.h>
 #include <rime/language.h>
+#include <rime/registry.h>
 
+#ifdef RIME_LUA_TOUCH_BRIDGE
+#include "touch_translator_bridge.h"
+#endif
 #include "translator.h"
 
 using namespace rime;
@@ -25,7 +29,29 @@ namespace TableTranslatorReg {
   class LTableTranslator : public TableTranslator {
     public:
       LTableTranslator(const Ticket& ticket, Lua* lua)
-        : TableTranslator(ticket), lua_(lua) {};
+        : TableTranslator(ticket), lua_(lua) {
+#ifdef RIME_LUA_TOUCH_BRIDGE
+        if (auto* comp =
+                Registry::instance().Find(TouchTranslatorBridge::kRegistryKey)) {
+          touch_attachment_ =
+              static_cast<TouchTranslatorBridge*>(comp)->AttachTable(this,
+                                                                     engine_);
+        }
+#endif
+      };
+
+#ifdef RIME_LUA_TOUCH_BRIDGE
+      an<Translation> Query(const string& input,
+                            const Segment& segment) override {
+        auto native = TableTranslator::Query(input, segment);
+        if (!touch_attachment_)
+          return native;
+        TableTouchRuntime rt{poet_.get(), enable_charset_filter_,
+                             enable_sentence_, max_homographs_};
+        return touch_attachment_->WrapQuery(std::move(native), input, segment,
+                                            rt);
+      }
+#endif
 
       virtual bool Memorize(const CommitEntry& commit_entry);
       bool memorize(const CommitEntry& commit_entry);
@@ -56,6 +82,9 @@ namespace TableTranslatorReg {
       void set_enable_sentence(bool);
 
       void disconnect() {
+#ifdef RIME_LUA_TOUCH_BRIDGE
+        touch_attachment_.reset();
+#endif
         dict_.reset();
         user_dict_.reset();
         language_.reset();
@@ -64,6 +93,10 @@ namespace TableTranslatorReg {
     protected:
       Lua* lua_;
       an<LuaObj> memorize_callback_;
+#ifdef RIME_LUA_TOUCH_BRIDGE
+      // Destroyed before base-class members, unregistering while dict_ lives.
+      the<TableTouchAttachment> touch_attachment_;
+#endif
       bool init_poet();
       bool init_encoder();
   };

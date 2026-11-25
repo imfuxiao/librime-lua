@@ -13,7 +13,11 @@
 #include <rime/dict/dictionary.h>
 #include <rime/dict/user_dictionary.h>
 #include <rime/language.h>
+#include <rime/registry.h>
 
+#ifdef RIME_LUA_TOUCH_BRIDGE
+#include "touch_translator_bridge.h"
+#endif
 #include "translator.h"
 
 using namespace rime;
@@ -24,7 +28,29 @@ namespace ScriptTranslatorReg {
   class LScriptTranslator : public ScriptTranslator {
     public:
       LScriptTranslator(const Ticket& ticket, Lua* lua)
-        : ScriptTranslator(ticket), lua_(lua) {};
+        : ScriptTranslator(ticket), lua_(lua) {
+#ifdef RIME_LUA_TOUCH_BRIDGE
+        if (auto* comp =
+                Registry::instance().Find(TouchTranslatorBridge::kRegistryKey)) {
+          touch_attachment_ =
+              static_cast<TouchTranslatorBridge*>(comp)->AttachScript(this,
+                                                                      engine_);
+        }
+#endif
+      };
+
+#ifdef RIME_LUA_TOUCH_BRIDGE
+      an<Translation> Query(const string& input,
+                            const Segment& segment) override {
+        auto native = ScriptTranslator::Query(input, segment);
+        if (!touch_attachment_)
+          return native;
+        ScriptTouchRuntime rt{poet_.get(), max_sentences_,
+                              sentence_cutoff_threshold_};
+        return touch_attachment_->WrapQuery(std::move(native), input, segment,
+                                            rt);
+      }
+#endif
 
       virtual bool Memorize(const CommitEntry& commit_entry);
       bool memorize(const CommitEntry& commit_entry);
@@ -50,6 +76,9 @@ namespace ScriptTranslatorReg {
       void set_enable_correction(bool);
 
       void disconnect() {
+#ifdef RIME_LUA_TOUCH_BRIDGE
+        touch_attachment_.reset();
+#endif
         dict_.reset();
         user_dict_.reset();
         language_.reset();
@@ -58,6 +87,11 @@ namespace ScriptTranslatorReg {
     protected:
       Lua* lua_;
       an<LuaObj> memorize_callback_;
+#ifdef RIME_LUA_TOUCH_BRIDGE
+      // Declared last among members so it is destroyed first and unregisters
+      // while the translator's dictionary is still alive.
+      the<ScriptTouchAttachment> touch_attachment_;
+#endif
       void init_correction();
   };
 
